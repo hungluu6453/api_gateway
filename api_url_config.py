@@ -34,5 +34,6 @@ if mode == 1:
         "STT_URL" : "https://172.28.10.73:8002/bkheart/api/stt",
         "CONV_URL" : "https://172.28.10.73:8003/bkheart/api/conversation_update",
         "QA_URL" : "https://172.28.10.73:8004/bkheart/api/qa",
+        "RETRIEVER_URL": "http://172.28.10.73:8005/bkheart/api/retrieve",
     }
 
