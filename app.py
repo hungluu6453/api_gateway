@@ -14,7 +14,7 @@ INTENT_ENTITY_URL = API_PATH["INTENT_ENTITY_URL"]
 STT_URL = API_PATH["STT_URL"]
 CONV_URL = API_PATH["CONV_URL"]
 QA_URL = API_PATH["QA_URL"]
-
+RETRIEVER_URL = API_PATH["RETRIEVER_URL"]
 
 logging.basicConfig(level=logging.INFO)
 
@@ -47,11 +47,11 @@ class Feedback_Request_Item(BaseModel):
 
 class Response_Item(BaseModel):
     utterance: str
-    response: str
+    response: List
     policy_response: str
     start_position: int
     end_position: int
-    context: str
+    context: List
 
 
 @app.post("/bkheart/api/text")
@@ -76,7 +76,7 @@ def text_response(Request: Text_Request_Item):
         output_dt,
         conversation_id,
         utterance,
-        response,
+        "\n".join(response),
         policy_response,
         None,
         paragraph_id,
@@ -122,7 +122,7 @@ async def speech_response(conversation_id: str = Form(), file: UploadFile = File
         output_dt,
         conversation_id,
         utterance,
-        response,
+        "\n".join(response),
         policy_response,
         None,
         paragraph_id,
@@ -168,25 +168,32 @@ def process_text(conversation_id, utterance):
 
     start_position = -1
     end_position = -1
-    context = ""
+    context = []
     policy_response = ""
     paragraph_id = None
     
     # Get Question Answering Result
     if action == 'answering':
-        qa_response = requests.post(
-            url=QA_URL,
+        retrieval_response = requests.post(
+            url=RETRIEVER_URL,
             json={'role': role, 'question': question}
         ).json()
 
-        policy_response = qa_response['text']
-        start_position = qa_response['start_position']
-        end_position = qa_response['end_position']
-        context = qa_response['context']
-        paragraph_id = qa_response['paragraph_id']
+        context = retrieval_response['context']
+        # paragraph_id = retrieval_response['paragraph_id']
+        isFAQ = retrieval_response['isFAQ']
+        end_position = 0
 
-        if qa_response['text'] == "":
-            response = "Xin lỗi nha, mình không tìm được câu trả lời cụ thể. Tuy nhiên, đoạn quy định sau có thể liên quan đến điều bạn thắc mắc."
+        if not isFAQ:
+            qa_response = requests.post(
+                url=QA_URL,
+                json={'question': question, 'context': context[0]}
+            ).json()
+
+            policy_response = qa_response['text']
+            start_position = qa_response['start_position']
+            end_position = qa_response['end_position']
+
 
     logging.info('Conversation_id: %s', conversation_id)
     logging.info('Utterance: %s', utterance)
@@ -216,7 +223,6 @@ def update_database(
         paragraph_id,
         voice_filename=None
     ):
-
     if conversation_id not in conversation_id_list:
         conversation_id_list.append(conversation_id)
         database.insert_conversation(conversation_id)
